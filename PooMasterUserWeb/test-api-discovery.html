@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Version Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #4CAF50;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .endpoint-test {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border-left: 4px solid #4CAF50;
+        }
+        .test-result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 API Version Discovery Test</h1>
+        
+        <div class="info">
+            <strong>Test Configuration:</strong><br>
+            Backend URL: <span id="backend-url">http://localhost:8000</span>
+        </div>
+
+        <div id="connection-status" class="status info">
+            ⏳ Not tested yet - Click "Test Connection" to begin
+        </div>
+
+        <button onclick="testConnection()">Test Connection</button>
+        <button onclick="testAllEndpoints()">Test All Endpoints</button>
+        <button onclick="location.reload()">Reset</button>
+
+        <div id="api-info" style="display:none;">
+            <h2>📋 API Information</h2>
+            <div class="endpoint-test">
+                <strong>Backend Version:</strong> <span id="backend-version">-</span><br>
+                <strong>API Version:</strong> <span id="api-version">-</span><br>
+                <strong>Discovered at:</strong> <span id="discovery-time">-</span>
+            </div>
+
+            <h3>Discovered Endpoints:</h3>
+            <pre id="endpoints-json">-</pre>
+        </div>
+
+        <div id="endpoint-tests" style="display:none;">
+            <h2>🧪 Endpoint Tests</h2>
+            <div id="test-results"></div>
+        </div>
+
+        <div id="error-details" style="display:none;">
+            <h2>❌ Error Details</h2>
+            <pre id="error-message"></pre>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000';
+        let discoveredConfig = null;
+
+        document.getElementById('backend-url').textContent = API_BASE_URL;
+
+        async function testConnection() {
+            const statusDiv = document.getElementById('connection-status');
+            const apiInfoDiv = document.getElementById('api-info');
+            const errorDiv = document.getElementById('error-details');
+            
+            statusDiv.className = 'status info';
+            statusDiv.textContent = '⏳ Testing connection...';
+            
+            apiInfoDiv.style.display = 'none';
+            errorDiv.style.display = 'none';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                discoveredConfig = data;
+
+                // Update status
+                statusDiv.className = 'status success';
+                statusDiv.textContent = '✅ Connection successful! API discovered.';
+
+                // Show API info
+                apiInfoDiv.style.display = 'block';
+                document.getElementById('backend-version').textContent = data.version;
+                document.getElementById('api-version').textContent = data.api_version;
+                document.getElementById('discovery-time').textContent = new Date().toLocaleString();
+                document.getElementById('endpoints-json').textContent = JSON.stringify(data.endpoints, null, 2);
+
+                console.log('API Discovery Result:', data);
+
+            } catch (error) {
+                // Update status
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '❌ Connection failed!';
+
+                // Show error details
+                errorDiv.style.display = 'block';
+                document.getElementById('error-message').textContent = 
+                    `Error Type: ${error.name}\n` +
+                    `Message: ${error.message}\n\n` +
+                    `Troubleshooting:\n` +
+                    `1. Check if backend server is running (python main.py)\n` +
+                    `2. Verify URL is correct: ${API_BASE_URL}\n` +
+                    `3. Check firewall/CORS settings\n` +
+                    `4. Try accessing ${API_BASE_URL}/docs in your browser`;
+
+                console.error('API Discovery Failed:', error);
+            }
+        }
+
+        async function testAllEndpoints() {
+            if (!discoveredConfig) {
+                alert('Please run "Test Connection" first!');
+                return;
+            }
+
+            const testResultsDiv = document.getElementById('test-results');
+            const testSection = document.getElementById('endpoint-tests');
+            
+            testSection.style.display = 'block';
+            testResultsDiv.innerHTML = '<p>⏳ Testing endpoints...</p>';
+
+            const results = [];
+
+            // Test each endpoint
+            for (const [name, path] of Object.entries(discoveredConfig.endpoints)) {
+                const testDiv = document.createElement('div');
+                testDiv.className = 'endpoint-test';
+                
+                try {
+                    const startTime = performance.now();
+                    const response = await fetch(`${API_BASE_URL}${path}`);
+                    const endTime = performance.now();
+                    const duration = (endTime - startTime).toFixed(2);
+
+                    const resultDiv = document.createElement('div');
+                    
+                    if (response.ok) {
+                        resultDiv.className = 'test-result success';
+                        resultDiv.innerHTML = `
+                            <strong>✅ ${name}</strong><br>
+                            Path: ${path}<br>
+                            Status: ${response.status} ${response.statusText}<br>
+                            Response Time: ${duration}ms
+                        `;
+                    } else {
+                        resultDiv.className = 'test-result error';
+                        resultDiv.innerHTML = `
+                            <strong>⚠️ ${name}</strong><br>
+                            Path: ${path}<br>
+                            Status: ${response.status} ${response.statusText}<br>
+                            Response Time: ${duration}ms
+                        `;
+                    }
+                    
+                    testDiv.appendChild(resultDiv);
+                    results.push({ name, success: response.ok, status: response.status });
+
+                } catch (error) {
+                    const resultDiv = document.createElement('div');
+                    resultDiv.className = 'test-result error';
+                    resultDiv.innerHTML = `
+                        <strong>❌ ${name}</strong><br>
+                        Path: ${path}<br>
+                        Error: ${error.message}
+                    `;
+                    testDiv.appendChild(resultDiv);
+                    results.push({ name, success: false, error: error.message });
+                }
+
+                testResultsDiv.appendChild(testDiv);
+            }
+
+            // Summary
+            const successCount = results.filter(r => r.success).length;
+            const totalCount = results.length;
+            
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = successCount === totalCount ? 'status success' : 'status error';
+            summaryDiv.style.marginTop = '20px';
+            summaryDiv.textContent = `Test Summary: ${successCount}/${totalCount} endpoints responding correctly`;
+            testResultsDiv.appendChild(summaryDiv);
+
+            console.log('Endpoint Test Results:', results);
+        }
+
+        // Auto-test on load if requested
+        if (window.location.hash === '#autotest') {
+            window.addEventListener('load', () => {
+                setTimeout(testConnection, 500);
+            });
+        }
+    </script>
+</body>
+</html>

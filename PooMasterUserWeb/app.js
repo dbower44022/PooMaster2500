@@ -2,6 +2,21 @@
 const API_BASE_URL = 'http://localhost:8000';
 const UPDATE_INTERVAL = 30000; // 30 seconds
 
+// API Configuration - Discovered dynamically
+let apiConfig = {
+    initialized: false,
+    version: null,
+    apiVersion: null,
+    endpoints: {
+        health: '/health',
+        status: '/api/status',
+        log_event: '/api/events',
+        history: '/api/history',
+        analytics: '/api/analytics',
+        accidents: '/api/accidents'
+    }
+};
+
 // Elements
 const peeLed = document.getElementById('pee-led');
 const pooLed = document.getElementById('poo-led');
@@ -24,36 +39,133 @@ const toast = document.getElementById('toast');
 let updateTimer;
 let averageData = { pee: null, poo: null };
 
-// Initialize
-document.addEventListener('DOMContentLoaded', () => {
-    // Set default accident time to now
-    const now = new Date();
-    const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
-        .toISOString()
-        .slice(0, 16);
-    document.getElementById('accident-time').value = localDateTime;
+// Initialize API Configuration
+async function initializeAPI() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/`);
+        if (!response.ok) {
+            throw new Error(`API returned status ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Store discovered configuration
+        apiConfig.version = data.version;
+        apiConfig.apiVersion = data.api_version;
+        apiConfig.endpoints = data.endpoints;
+        apiConfig.initialized = true;
+        
+        console.log(`Connected to Puppy Tracker API v${data.version} (API ${data.api_version})`);
+        setConnectionStatus(true);
+        return true;
+        
+    } catch (error) {
+        console.error('Failed to initialize API:', error);
+        showToast(`Failed to connect to API server at ${API_BASE_URL}. Please check that the server is running.`, 'error');
+        setConnectionStatus(false);
+        
+        // Show error overlay
+        showAPIError(error.message);
+        return false;
+    }
+}
+
+// Show API Error Overlay
+function showAPIError(errorMessage) {
+    const overlay = document.createElement('div');
+    overlay.id = 'api-error-overlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    `;
     
-    // Start updating
-    updateStatus();
-    updateAnalytics();
-    loadRecentEvents();
+    overlay.innerHTML = `
+        <div style="background: white; padding: 30px; border-radius: 10px; max-width: 500px; text-align: center;">
+            <h2 style="color: #f44336; margin-bottom: 20px;">⚠️ API Connection Error</h2>
+            <p style="margin-bottom: 15px;">Cannot connect to the Puppy Tracker API server.</p>
+            <p style="color: #666; margin-bottom: 20px;">
+                Server URL: <strong>${API_BASE_URL}</strong><br>
+                Error: ${errorMessage}
+            </p>
+            <p style="margin-bottom: 20px;">Please ensure:</p>
+            <ul style="text-align: left; margin-bottom: 20px; padding-left: 40px;">
+                <li>The backend server is running (python main.py)</li>
+                <li>The server URL is correct</li>
+                <li>Your firewall allows the connection</li>
+            </ul>
+            <button id="retry-connection" style="
+                padding: 12px 24px;
+                background: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                font-size: 1rem;
+            ">Retry Connection</button>
+        </div>
+    `;
     
-    // Set up periodic updates
-    updateTimer = setInterval(() => {
+    document.body.appendChild(overlay);
+    
+    document.getElementById('retry-connection').addEventListener('click', async () => {
+        overlay.remove();
+        await initializeAndStart();
+    });
+}
+
+// Initialize and start the application
+async function initializeAndStart() {
+    const success = await initializeAPI();
+    
+    if (success) {
+        // Set default accident time to now
+        const now = new Date();
+        const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+            .toISOString()
+            .slice(0, 16);
+        document.getElementById('accident-time').value = localDateTime;
+        
+        // Start updating
         updateStatus();
+        updateAnalytics();
         loadRecentEvents();
-    }, UPDATE_INTERVAL);
-    
-    // Event listeners
-    btnPee.addEventListener('click', () => logEvent('pee'));
-    btnPoo.addEventListener('click', () => logEvent('poo'));
-    accidentForm.addEventListener('submit', handleAccidentSubmit);
-});
+        
+        // Set up periodic updates
+        if (updateTimer) {
+            clearInterval(updateTimer);
+        }
+        updateTimer = setInterval(() => {
+            updateStatus();
+            loadRecentEvents();
+        }, UPDATE_INTERVAL);
+        
+        // Event listeners
+        btnPee.addEventListener('click', () => logEvent('pee'));
+        btnPoo.addEventListener('click', () => logEvent('poo'));
+        accidentForm.addEventListener('submit', handleAccidentSubmit);
+    }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', initializeAndStart);
 
 // Fetch current status
 async function updateStatus() {
+    if (!apiConfig.initialized) {
+        console.warn('API not initialized, skipping status update');
+        return;
+    }
+    
     try {
-        const response = await fetch(`${API_BASE_URL}/api/status`);
+        const response = await fetch(`${API_BASE_URL}${apiConfig.endpoints.status}`);
         if (!response.ok) throw new Error('Failed to fetch status');
         
         const status = await response.json();
@@ -97,8 +209,13 @@ function updateLED(element, color) {
 
 // Fetch and update analytics
 async function updateAnalytics() {
+    if (!apiConfig.initialized) {
+        console.warn('API not initialized, skipping analytics update');
+        return;
+    }
+    
     try {
-        const response = await fetch(`${API_BASE_URL}/api/analytics?days=7`);
+        const response = await fetch(`${API_BASE_URL}${apiConfig.endpoints.analytics}?days=7`);
         if (!response.ok) throw new Error('Failed to fetch analytics');
         
         const analytics = await response.json();
@@ -116,8 +233,13 @@ async function updateAnalytics() {
 
 // Log bathroom event
 async function logEvent(eventType) {
+    if (!apiConfig.initialized) {
+        showToast('API not initialized. Please refresh the page.', 'error');
+        return;
+    }
+    
     try {
-        const response = await fetch(`${API_BASE_URL}/api/events`, {
+        const response = await fetch(`${API_BASE_URL}${apiConfig.endpoints.log_event}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -145,13 +267,18 @@ async function logEvent(eventType) {
 async function handleAccidentSubmit(e) {
     e.preventDefault();
     
+    if (!apiConfig.initialized) {
+        showToast('API not initialized. Please refresh the page.', 'error');
+        return;
+    }
+    
     const eventType = document.getElementById('accident-type').value;
     const estimatedTime = document.getElementById('accident-time').value;
     const location = document.getElementById('accident-location').value;
     const notes = document.getElementById('accident-notes').value;
     
     try {
-        const response = await fetch(`${API_BASE_URL}/api/accidents`, {
+        const response = await fetch(`${API_BASE_URL}${apiConfig.endpoints.accidents}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -184,8 +311,13 @@ async function handleAccidentSubmit(e) {
 
 // Load recent events (last 24 hours)
 async function loadRecentEvents() {
+    if (!apiConfig.initialized) {
+        console.warn('API not initialized, skipping recent events load');
+        return;
+    }
+    
     try {
-        const response = await fetch(`${API_BASE_URL}/api/history?days=1&limit=20`);
+        const response = await fetch(`${API_BASE_URL}${apiConfig.endpoints.history}?days=1&limit=20`);
         if (!response.ok) throw new Error('Failed to fetch history');
         
         const data = await response.json();
@@ -206,7 +338,7 @@ async function loadRecentEvents() {
             const formattedTime = eventDate.toLocaleString();
             
             eventItem.innerHTML = `
-                <span class="event-type">${event.event_type === 'pee' ? '💧' : '💩'}</span>
+                <span class="event-type">${event.event_type === 'pee' ? 'ðŸ’§' : 'ðŸ’©'}</span>
                 <div class="event-info">
                     <div><strong>${event.event_type.charAt(0).toUpperCase() + event.event_type.slice(1)}</strong></div>
                     <div class="event-time">${formattedTime} (${timeAgo})</div>

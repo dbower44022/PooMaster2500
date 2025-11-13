@@ -1,6 +1,21 @@
 // Configuration
 const API_BASE_URL = 'http://localhost:8000';
 
+// API Configuration - Discovered dynamically
+let apiConfig = {
+    initialized: false,
+    version: null,
+    apiVersion: null,
+    endpoints: {
+        health: '/health',
+        status: '/api/status',
+        log_event: '/api/events',
+        history: '/api/history',
+        analytics: '/api/analytics',
+        accidents: '/api/accidents'
+    }
+};
+
 // Elements
 const daysSelect = document.getElementById('days-select');
 const refreshBtn = document.getElementById('refresh-btn');
@@ -30,16 +45,103 @@ let intervalChart = null;
 // Data cache
 let historyData = [];
 
-// Initialize
-document.addEventListener('DOMContentLoaded', () => {
-    loadAllData();
+// Initialize API Configuration
+async function initializeAPI() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/`);
+        if (!response.ok) {
+            throw new Error(`API returned status ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Store discovered configuration
+        apiConfig.version = data.version;
+        apiConfig.apiVersion = data.api_version;
+        apiConfig.endpoints = data.endpoints;
+        apiConfig.initialized = true;
+        
+        console.log(`Connected to Puppy Tracker API v${data.version} (API ${data.api_version})`);
+        return true;
+        
+    } catch (error) {
+        console.error('Failed to initialize API:', error);
+        showToast(`Failed to connect to API server at ${API_BASE_URL}. Please check that the server is running.`, 'error');
+        
+        // Show error overlay
+        showAPIError(error.message);
+        return false;
+    }
+}
+
+// Show API Error Overlay
+function showAPIError(errorMessage) {
+    const overlay = document.createElement('div');
+    overlay.id = 'api-error-overlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    `;
     
-    // Event listeners
-    refreshBtn.addEventListener('click', loadAllData);
-    daysSelect.addEventListener('change', loadAllData);
-    filterPee.addEventListener('change', renderHistoryTable);
-    filterPoo.addEventListener('change', renderHistoryTable);
-});
+    overlay.innerHTML = `
+        <div style="background: white; padding: 30px; border-radius: 10px; max-width: 500px; text-align: center;">
+            <h2 style="color: #f44336; margin-bottom: 20px;">⚠️ API Connection Error</h2>
+            <p style="margin-bottom: 15px;">Cannot connect to the Puppy Tracker API server.</p>
+            <p style="color: #666; margin-bottom: 20px;">
+                Server URL: <strong>${API_BASE_URL}</strong><br>
+                Error: ${errorMessage}
+            </p>
+            <p style="margin-bottom: 20px;">Please ensure:</p>
+            <ul style="text-align: left; margin-bottom: 20px; padding-left: 40px;">
+                <li>The backend server is running (python main.py)</li>
+                <li>The server URL is correct</li>
+                <li>Your firewall allows the connection</li>
+            </ul>
+            <button id="retry-connection" style="
+                padding: 12px 24px;
+                background: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                font-size: 1rem;
+            ">Retry Connection</button>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    document.getElementById('retry-connection').addEventListener('click', async () => {
+        overlay.remove();
+        await initializeAndStart();
+    });
+}
+
+// Initialize and start the application
+async function initializeAndStart() {
+    const success = await initializeAPI();
+    
+    if (success) {
+        loadAllData();
+        
+        // Event listeners
+        refreshBtn.addEventListener('click', loadAllData);
+        daysSelect.addEventListener('change', loadAllData);
+        filterPee.addEventListener('change', renderHistoryTable);
+        filterPoo.addEventListener('change', renderHistoryTable);
+    }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', initializeAndStart);
 
 // Load all data
 async function loadAllData() {
@@ -56,8 +158,13 @@ async function loadAllData() {
 
 // Load analytics
 async function loadAnalytics(days) {
+    if (!apiConfig.initialized) {
+        console.warn('API not initialized, skipping analytics load');
+        return;
+    }
+    
     try {
-        const response = await fetch(`${API_BASE_URL}/api/analytics?days=${days}`);
+        const response = await fetch(`${API_BASE_URL}${apiConfig.endpoints.analytics}?days=${days}`);
         if (!response.ok) throw new Error('Failed to fetch analytics');
         
         const analytics = await response.json();
@@ -83,8 +190,13 @@ async function loadAnalytics(days) {
 
 // Load full history
 async function loadHistory(days) {
+    if (!apiConfig.initialized) {
+        console.warn('API not initialized, skipping history load');
+        return;
+    }
+    
     try {
-        const response = await fetch(`${API_BASE_URL}/api/history?days=${days}&limit=1000`);
+        const response = await fetch(`${API_BASE_URL}${apiConfig.endpoints.history}?days=${days}&limit=1000`);
         if (!response.ok) throw new Error('Failed to fetch history');
         
         const data = await response.json();
@@ -134,7 +246,7 @@ function renderHistoryTable() {
     filteredEvents.forEach(event => {
         const eventDate = new Date(event.timestamp);
         const timeAgo = getTimeAgo(eventDate);
-        const icon = event.event_type === 'pee' ? '💧' : '💩';
+        const icon = event.event_type === 'pee' ? 'ðŸ’§' : 'ðŸ’©';
         
         html += `
             <tr>
@@ -155,8 +267,13 @@ function renderHistoryTable() {
 
 // Load accidents
 async function loadAccidents(days) {
+    if (!apiConfig.initialized) {
+        console.warn('API not initialized, skipping accidents load');
+        return;
+    }
+    
     try {
-        const response = await fetch(`${API_BASE_URL}/api/accidents?days=${days}`);
+        const response = await fetch(`${API_BASE_URL}${apiConfig.endpoints.accidents}?days=${days}`);
         if (!response.ok) throw new Error('Failed to fetch accidents');
         
         const data = await response.json();
@@ -170,7 +287,7 @@ async function loadAccidents(days) {
         
         data.accidents.forEach(accident => {
             const accidentDate = new Date(accident.estimated_time);
-            const icon = accident.event_type === 'pee' ? '💧' : '💩';
+            const icon = accident.event_type === 'pee' ? 'ðŸ’§' : 'ðŸ’©';
             
             const accidentItem = document.createElement('div');
             accidentItem.className = 'accident-item';
@@ -230,14 +347,14 @@ function updateTimelineChart() {
             labels: dates,
             datasets: [
                 {
-                    label: '💧 Pee Events',
+                    label: 'ðŸ’§ Pee Events',
                     data: peeData,
                     borderColor: 'rgb(102, 126, 234)',
                     backgroundColor: 'rgba(102, 126, 234, 0.1)',
                     tension: 0.4
                 },
                 {
-                    label: '💩 Poo Events',
+                    label: 'ðŸ’© Poo Events',
                     data: pooData,
                     borderColor: 'rgb(245, 87, 108)',
                     backgroundColor: 'rgba(245, 87, 108, 0.1)',
