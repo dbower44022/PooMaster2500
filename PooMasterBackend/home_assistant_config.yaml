@@ -1,0 +1,173 @@
+# Home Assistant Configuration for Puppy Bathroom Tracker
+# Add this to your configuration.yaml
+
+# REST Sensors
+rest:
+  - resource: http://YOUR_PC_IP:8000/api/status
+    scan_interval: 30  # Update every 30 seconds
+    sensor:
+      - name: "Puppy Pee Status"
+        value_template: "{{ value_json.pee_time_since }}"
+        unit_of_measurement: "hours"
+        device_class: duration
+        json_attributes:
+          - pee_percentage
+          - pee_alarm
+        
+      - name: "Puppy Poo Status"
+        value_template: "{{ value_json.poo_time_since }}"
+        unit_of_measurement: "hours"
+        device_class: duration
+        json_attributes:
+          - poo_percentage
+          - poo_alarm
+
+# Template Sensors for Color Status
+template:
+  - sensor:
+      - name: "Puppy Pee Color Status"
+        state: >
+          {% set pct = state_attr('sensor.puppy_pee_status', 'pee_percentage') | float(0) %}
+          {% if pct >= 90 %}red
+          {% elif pct >= 75 %}orange
+          {% elif pct >= 60 %}yellow
+          {% else %}green
+          {% endif %}
+        
+      - name: "Puppy Poo Color Status"
+        state: >
+          {% set pct = state_attr('sensor.puppy_poo_status', 'poo_percentage') | float(0) %}
+          {% if pct >= 90 %}red
+          {% elif pct >= 75 %}orange
+          {% elif pct >= 60 %}yellow
+          {% else %}green
+          {% endif %}
+  
+  - binary_sensor:
+      - name: "Puppy Pee Alarm"
+        state: "{{ state_attr('sensor.puppy_pee_status', 'pee_alarm') }}"
+        device_class: problem
+        
+      - name: "Puppy Poo Alarm"
+        state: "{{ state_attr('sensor.puppy_poo_status', 'poo_alarm') }}"
+        device_class: problem
+
+# REST Commands for Logging Events
+rest_command:
+  log_puppy_pee:
+    url: http://YOUR_PC_IP:8000/api/events
+    method: POST
+    headers:
+      Content-Type: application/json
+    payload: '{"event_type": "pee"}'
+    
+  log_puppy_poo:
+    url: http://YOUR_PC_IP:8000/api/events
+    method: POST
+    headers:
+      Content-Type: application/json
+    payload: '{"event_type": "poo"}'
+
+# Automation Examples
+automation:
+  # Alert when puppy needs to go out (90% threshold)
+  - alias: "Puppy Needs Bathroom - Pee Alert"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.puppy_pee_alarm
+        to: "on"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "🐕 Puppy Alert!"
+          message: "Time for a pee break! It's been {{ states('sensor.puppy_pee_status') }} hours."
+          data:
+            tag: puppy_pee_alert
+            priority: high
+  
+  - alias: "Puppy Needs Bathroom - Poo Alert"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.puppy_poo_alarm
+        to: "on"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "🐕 Puppy Alert!"
+          message: "Time for a poo break! It's been {{ states('sensor.puppy_poo_status') }} hours."
+          data:
+            tag: puppy_poo_alert
+            priority: high
+  
+  # Optional: Reminder at 75% threshold (yellow status)
+  - alias: "Puppy Bathroom Reminder - Yellow Status"
+    trigger:
+      - platform: state
+        entity_id: sensor.puppy_pee_color_status
+        to: "yellow"
+      - platform: state
+        entity_id: sensor.puppy_poo_color_status
+        to: "yellow"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "🐕 Puppy Reminder"
+          message: "Puppy will need to go out soon ({{ trigger.to_state.attributes.friendly_name }})."
+
+# Dashboard Card Example (Lovelace)
+# Add this to your dashboard:
+#
+# type: vertical-stack
+# cards:
+#   - type: entities
+#     title: 🐕 Puppy Bathroom Tracker
+#     entities:
+#       - entity: sensor.puppy_pee_status
+#         name: Last Pee
+#         secondary_info: last-changed
+#       - entity: sensor.puppy_poo_status
+#         name: Last Poo
+#         secondary_info: last-changed
+#       - entity: sensor.puppy_pee_color_status
+#         name: Pee Status
+#       - entity: sensor.puppy_poo_color_status
+#         name: Poo Status
+#   
+#   - type: horizontal-stack
+#     cards:
+#       - type: button
+#         name: Log Pee
+#         icon: mdi:water
+#         tap_action:
+#           action: call-service
+#           service: rest_command.log_puppy_pee
+#       - type: button
+#         name: Log Poo
+#         icon: mdi:pool
+#         tap_action:
+#           action: call-service
+#           service: rest_command.log_puppy_poo
+#   
+#   - type: gauge
+#     entity: sensor.puppy_pee_status
+#     name: Pee Timer
+#     max: 6
+#     severity:
+#       green: 0
+#       yellow: 2.4
+#       red: 3.6
+#   
+#   - type: gauge
+#     entity: sensor.puppy_poo_status
+#     name: Poo Timer
+#     max: 15
+#     severity:
+#       green: 0
+#       yellow: 9
+#       red: 11.25
+
+# Notes:
+# 1. Replace YOUR_PC_IP with your Windows PC's IP address
+# 2. Make sure the server is running and accessible from your Home Assistant instance
+# 3. Restart Home Assistant after adding this configuration
+# 4. Check for any errors in Settings -> System -> Logs
