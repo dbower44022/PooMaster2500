@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐕 Puppy Bathroom Tracker</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🐕 Puppy Bathroom Tracker</h1>
+            <nav>
+                <a href="index.html" class="active">Dashboard</a>
+                <a href="admin.html">Admin</a>
+            </nav>
+        </header>
+
+        <main>
+            <!-- Status Cards -->
+            <div class="status-grid">
+                <!-- Pee Status -->
+                <div class="status-card">
+                    <div class="card-header">
+                        <h2>💧 Pee Status</h2>
+                    </div>
+                    <div class="led-display">
+                        <div id="pee-led" class="led" style="background-color: rgb(0, 255, 0);"></div>
+                    </div>
+                    <div class="status-info">
+                        <div class="time-display">
+                            <span id="pee-time" class="time-value">--</span>
+                            <span class="time-label">hours ago</span>
+                        </div>
+                        <div class="percentage">
+                            <div id="pee-percentage" class="percentage-value">--%</div>
+                        </div>
+                        <div id="pee-alarm" class="alarm hidden">
+                            🚨 NEEDS ATTENTION!
+                        </div>
+                    </div>
+                    <button id="btn-pee" class="action-button pee-button">
+                        Log Pee Event
+                    </button>
+                </div>
+
+                <!-- Poo Status -->
+                <div class="status-card">
+                    <div class="card-header">
+                        <h2>💩 Poo Status</h2>
+                    </div>
+                    <div class="led-display">
+                        <div id="poo-led" class="led" style="background-color: rgb(0, 255, 0);"></div>
+                    </div>
+                    <div class="status-info">
+                        <div class="time-display">
+                            <span id="poo-time" class="time-value">--</span>
+                            <span class="time-label">hours ago</span>
+                        </div>
+                        <div class="percentage">
+                            <div id="poo-percentage" class="percentage-value">--%</div>
+                        </div>
+                        <div id="poo-alarm" class="alarm hidden">
+                            🚨 NEEDS ATTENTION!
+                        </div>
+                    </div>
+                    <button id="btn-poo" class="action-button poo-button">
+                        Log Poo Event
+                    </button>
+                </div>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="quick-stats">
+                <div class="stat-card">
+                    <div class="stat-label">Pee Average</div>
+                    <div id="pee-avg" class="stat-value">-- hrs</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Poo Average</div>
+                    <div id="poo-avg" class="stat-value">-- hrs</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Last Update</div>
+                    <div id="last-update" class="stat-value">--</div>
+                </div>
+            </div>
+
+            <!-- Accident Logging -->
+            <div class="accident-section">
+                <h2>📝 Log Accident</h2>
+                <form id="accident-form" class="accident-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="accident-type">Type:</label>
+                            <select id="accident-type" required>
+                                <option value="pee">Pee</option>
+                                <option value="poo">Poo</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="accident-time">Estimated Time:</label>
+                            <input type="datetime-local" id="accident-time" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="accident-location">Location:</label>
+                        <input type="text" id="accident-location" placeholder="e.g., Living room carpet" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="accident-notes">Notes:</label>
+                        <textarea id="accident-notes" rows="2" placeholder="Optional notes..."></textarea>
+                    </div>
+                    <button type="submit" class="submit-button">Log Accident</button>
+                </form>
+            </div>
+
+            <!-- Recent Events -->
+            <div class="recent-section">
+                <h2>📊 Recent Events (Last 24 Hours)</h2>
+                <div id="recent-events" class="event-list">
+                    <div class="loading">Loading events...</div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Status updates every 30 seconds | <span id="connection-status">Connected</span></p>
+        </footer>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

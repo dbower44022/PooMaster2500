@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐕 Admin - Puppy Tracker</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🐕 Puppy Bathroom Tracker - Admin</h1>
+            <nav>
+                <a href="index.html">Dashboard</a>
+                <a href="admin.html" class="active">Admin</a>
+            </nav>
+        </header>
+
+        <main>
+            <!-- Analytics Controls -->
+            <div class="controls">
+                <div class="control-group">
+                    <label for="days-select">Analysis Period:</label>
+                    <select id="days-select">
+                        <option value="1">Last 24 Hours</option>
+                        <option value="3">Last 3 Days</option>
+                        <option value="7" selected>Last 7 Days</option>
+                        <option value="14">Last 14 Days</option>
+                        <option value="30">Last 30 Days</option>
+                    </select>
+                </div>
+                <button id="refresh-btn" class="refresh-button">🔄 Refresh Data</button>
+            </div>
+
+            <!-- Summary Statistics -->
+            <div class="analytics-grid">
+                <div class="analytics-card">
+                    <h3>💧 Pee Statistics</h3>
+                    <div class="analytics-content">
+                        <div class="stat-row">
+                            <span class="stat-label">Total Events:</span>
+                            <span id="pee-count" class="stat-value">--</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Average Interval:</span>
+                            <span id="pee-avg-interval" class="stat-value">-- hours</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Time Since Last:</span>
+                            <span id="pee-time-since" class="stat-value">-- hours</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Current %:</span>
+                            <span id="pee-current-pct" class="stat-value">--%</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Accidents:</span>
+                            <span id="pee-accidents" class="stat-value">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="analytics-card">
+                    <h3>💩 Poo Statistics</h3>
+                    <div class="analytics-content">
+                        <div class="stat-row">
+                            <span class="stat-label">Total Events:</span>
+                            <span id="poo-count" class="stat-value">--</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Average Interval:</span>
+                            <span id="poo-avg-interval" class="stat-value">-- hours</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Time Since Last:</span>
+                            <span id="poo-time-since" class="stat-value">-- hours</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Current %:</span>
+                            <span id="poo-current-pct" class="stat-value">--%</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Accidents:</span>
+                            <span id="poo-accidents" class="stat-value">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="chart-section">
+                <div class="chart-container">
+                    <h3>Event Timeline</h3>
+                    <canvas id="timeline-chart"></canvas>
+                </div>
+                
+                <div class="chart-container">
+                    <h3>Interval Distribution</h3>
+                    <canvas id="interval-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- Full History -->
+            <div class="history-section">
+                <div class="section-header">
+                    <h2>📜 Full Event History</h2>
+                    <div class="filter-controls">
+                        <label>
+                            <input type="checkbox" id="filter-pee" checked> 💧 Pee
+                        </label>
+                        <label>
+                            <input type="checkbox" id="filter-poo" checked> 💩 Poo
+                        </label>
+                    </div>
+                </div>
+                <div id="history-table" class="history-table">
+                    <div class="loading">Loading history...</div>
+                </div>
+            </div>
+
+            <!-- Accident History -->
+            <div class="history-section">
+                <h2>⚠️ Accident History</h2>
+                <div id="accident-history" class="accident-list">
+                    <div class="loading">Loading accidents...</div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Last updated: <span id="last-update">--</span></p>
+        </footer>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <script src="admin.js"></script>
+</body>
+</html>

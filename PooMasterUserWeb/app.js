@@ -1,0 +1,268 @@
+// Configuration
+const API_BASE_URL = 'http://localhost:8000';
+const UPDATE_INTERVAL = 30000; // 30 seconds
+
+// Elements
+const peeLed = document.getElementById('pee-led');
+const pooLed = document.getElementById('poo-led');
+const peeTime = document.getElementById('pee-time');
+const pooTime = document.getElementById('poo-time');
+const peePercentage = document.getElementById('pee-percentage');
+const pooPercentage = document.getElementById('poo-percentage');
+const peeAlarm = document.getElementById('pee-alarm');
+const pooAlarm = document.getElementById('poo-alarm');
+const peeAvg = document.getElementById('pee-avg');
+const pooAvg = document.getElementById('poo-avg');
+const lastUpdate = document.getElementById('last-update');
+const connectionStatus = document.getElementById('connection-status');
+const btnPee = document.getElementById('btn-pee');
+const btnPoo = document.getElementById('btn-poo');
+const accidentForm = document.getElementById('accident-form');
+const recentEvents = document.getElementById('recent-events');
+const toast = document.getElementById('toast');
+
+let updateTimer;
+let averageData = { pee: null, poo: null };
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    // Set default accident time to now
+    const now = new Date();
+    const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+        .toISOString()
+        .slice(0, 16);
+    document.getElementById('accident-time').value = localDateTime;
+    
+    // Start updating
+    updateStatus();
+    updateAnalytics();
+    loadRecentEvents();
+    
+    // Set up periodic updates
+    updateTimer = setInterval(() => {
+        updateStatus();
+        loadRecentEvents();
+    }, UPDATE_INTERVAL);
+    
+    // Event listeners
+    btnPee.addEventListener('click', () => logEvent('pee'));
+    btnPoo.addEventListener('click', () => logEvent('poo'));
+    accidentForm.addEventListener('submit', handleAccidentSubmit);
+});
+
+// Fetch current status
+async function updateStatus() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/status`);
+        if (!response.ok) throw new Error('Failed to fetch status');
+        
+        const status = await response.json();
+        
+        // Update Pee Status
+        updateLED(peeLed, status.pee);
+        peeTime.textContent = status.pee_time_since.toFixed(1);
+        peePercentage.textContent = `${status.pee_percentage.toFixed(0)}%`;
+        
+        if (status.pee_alarm) {
+            peeAlarm.classList.remove('hidden');
+        } else {
+            peeAlarm.classList.add('hidden');
+        }
+        
+        // Update Poo Status
+        updateLED(pooLed, status.poo);
+        pooTime.textContent = status.poo_time_since.toFixed(1);
+        pooPercentage.textContent = `${status.poo_percentage.toFixed(0)}%`;
+        
+        if (status.poo_alarm) {
+            pooAlarm.classList.remove('hidden');
+        } else {
+            pooAlarm.classList.add('hidden');
+        }
+        
+        // Update timestamp
+        lastUpdate.textContent = new Date().toLocaleTimeString();
+        setConnectionStatus(true);
+        
+    } catch (error) {
+        console.error('Error updating status:', error);
+        setConnectionStatus(false);
+    }
+}
+
+// Update LED color
+function updateLED(element, color) {
+    element.style.backgroundColor = `rgb(${color.r}, ${color.g}, ${color.b})`;
+}
+
+// Fetch and update analytics
+async function updateAnalytics() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/analytics?days=7`);
+        if (!response.ok) throw new Error('Failed to fetch analytics');
+        
+        const analytics = await response.json();
+        
+        averageData.pee = analytics.pee.average_interval_hours;
+        averageData.poo = analytics.poo.average_interval_hours;
+        
+        peeAvg.textContent = `${analytics.pee.average_interval_hours.toFixed(1)} hrs`;
+        pooAvg.textContent = `${analytics.poo.average_interval_hours.toFixed(1)} hrs`;
+        
+    } catch (error) {
+        console.error('Error updating analytics:', error);
+    }
+}
+
+// Log bathroom event
+async function logEvent(eventType) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/events`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ event_type: eventType })
+        });
+        
+        if (!response.ok) throw new Error('Failed to log event');
+        
+        const result = await response.json();
+        showToast(`${eventType.charAt(0).toUpperCase() + eventType.slice(1)} event logged successfully!`, 'success');
+        
+        // Immediate update
+        updateStatus();
+        updateAnalytics();
+        loadRecentEvents();
+        
+    } catch (error) {
+        console.error('Error logging event:', error);
+        showToast('Failed to log event. Please try again.', 'error');
+    }
+}
+
+// Handle accident form submission
+async function handleAccidentSubmit(e) {
+    e.preventDefault();
+    
+    const eventType = document.getElementById('accident-type').value;
+    const estimatedTime = document.getElementById('accident-time').value;
+    const location = document.getElementById('accident-location').value;
+    const notes = document.getElementById('accident-notes').value;
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/accidents`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                event_type: eventType,
+                estimated_time: estimatedTime,
+                location: location,
+                notes: notes || null
+            })
+        });
+        
+        if (!response.ok) throw new Error('Failed to log accident');
+        
+        showToast('Accident logged successfully!', 'success');
+        
+        // Reset form
+        accidentForm.reset();
+        const now = new Date();
+        const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+            .toISOString()
+            .slice(0, 16);
+        document.getElementById('accident-time').value = localDateTime;
+        
+    } catch (error) {
+        console.error('Error logging accident:', error);
+        showToast('Failed to log accident. Please try again.', 'error');
+    }
+}
+
+// Load recent events (last 24 hours)
+async function loadRecentEvents() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/history?days=1&limit=20`);
+        if (!response.ok) throw new Error('Failed to fetch history');
+        
+        const data = await response.json();
+        
+        if (data.events.length === 0) {
+            recentEvents.innerHTML = '<div class="loading">No events in the last 24 hours</div>';
+            return;
+        }
+        
+        recentEvents.innerHTML = '';
+        
+        data.events.forEach(event => {
+            const eventItem = document.createElement('div');
+            eventItem.className = 'event-item';
+            
+            const eventDate = new Date(event.timestamp);
+            const timeAgo = getTimeAgo(eventDate);
+            const formattedTime = eventDate.toLocaleString();
+            
+            eventItem.innerHTML = `
+                <span class="event-type">${event.event_type === 'pee' ? '💧' : '💩'}</span>
+                <div class="event-info">
+                    <div><strong>${event.event_type.charAt(0).toUpperCase() + event.event_type.slice(1)}</strong></div>
+                    <div class="event-time">${formattedTime} (${timeAgo})</div>
+                </div>
+            `;
+            
+            recentEvents.appendChild(eventItem);
+        });
+        
+    } catch (error) {
+        console.error('Error loading recent events:', error);
+        recentEvents.innerHTML = '<div class="loading">Failed to load events</div>';
+    }
+}
+
+// Get time ago string
+function getTimeAgo(date) {
+    const seconds = Math.floor((new Date() - date) / 1000);
+    
+    if (seconds < 60) return 'just now';
+    
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
+    
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+    
+    const days = Math.floor(hours / 24);
+    return `${days} day${days !== 1 ? 's' : ''} ago`;
+}
+
+// Set connection status
+function setConnectionStatus(connected) {
+    if (connected) {
+        connectionStatus.textContent = 'Connected';
+        connectionStatus.classList.remove('disconnected');
+    } else {
+        connectionStatus.textContent = 'Disconnected';
+        connectionStatus.classList.add('disconnected');
+    }
+}
+
+// Show toast notification
+function showToast(message, type = 'success') {
+    toast.textContent = message;
+    toast.className = `toast ${type}`;
+    toast.classList.add('show');
+    
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3000);
+}
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    if (updateTimer) {
+        clearInterval(updateTimer);
+    }
+});
